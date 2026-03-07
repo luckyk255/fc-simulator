@@ -106,7 +106,9 @@ function __main__() {
     // 初始化拖拽
     let dragDropCallback = function(){
         // 不管当前模拟是否暂停状态，强制恢复
+        // 注意：需要确保音频已启动，所以先start再resume
         running = false
+        machine.apu.start()  // 确保音频上下文已启动（浏览器安全策略要求）
         pauseGame()
     }
     let dragDrop = new DragDrop(machine, dragDropEl,dragDropCallback)

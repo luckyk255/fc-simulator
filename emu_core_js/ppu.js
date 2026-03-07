@@ -1,58 +1,86 @@
+
+/**
+ * PPU (Picture Processing Unit) - 图像处理单元
+ *
+ * 作用: 这是红白机的"显卡",负责把所有游戏画面画出来
+ * 类比: 就像画家的手和画笔,把游戏的场景、角色、道具都画到屏幕上
+ *
+ * 核心概念:
+ * - 渲染 (Rendering): 把VRAM(显存)中的数据转换成实际画面的过程
+ * - 扫描线 (Scanline): 电视机/显示器一行一行画画面的方式
+ * - VBLANK (垂直空白期): 画完一帧后的休息时间
+ * - Tile: 8x8的小方块,游戏的画面由这些小方块拼成(就像马赛克拼图)
+ *
+ * PPU的工作原理(简化版):
+ * 1. CPU告诉PPU: "把VRAM地址0x2000处的背景画出来"
+ * 2. PPU读取VRAM中的Tile数据(每个Tile代表8x8像素的图案)
+ * 3. PPU把这些Tile按顺序排列,组合成完整画面
+ * 4. 处理精灵(Sprite): 马里奥、敌人等会动的角色
+ * 5. 把背景和精灵混合,处理遮挡关系(谁在前谁在后)
+ * 6. 应用调色板: 给每个像素上色(事实上NES只用52种颜色)
+ * 7. 输出最终画面到屏幕
+ *
+ * PPU寄存器 (CPU可以访问的8个控制端口):
+ * - $2000 PPUCTRL: 控制寄存器(开关NMI、设置精灵/背景Tile位置等)
+ * - $2001 PPUMASK: 显示控制(显示/隐藏背景、精灵、调色等)
+ * - $2002 PPUSTATUS: 状态读取(VBLANK状态、精灵碰撞等)
+ * - $2003 OAMADDR: 精灵内存地址指针
+ * - $2004 OAMDATA: 精灵内存数据读写
+ * - $2005 PPUSCROLL: 画面滚动偏移(实现画面卷轴效果)
+ * - $2006 PPUADDR: VRAM地址指针(告诉PPU要读写哪)
+ * - $2007 PPUDATA: VRAM数据读写(具体读写的数据)
+ * - $4014 OAMDMA: 批量传输精灵数据(减少CPU负担)
+ */
 class PPU {
     constructor() {
 
-        // *******************************************
-        // 
-        // PPU状态定义
-        // 
-        // *******************************************
+        // ===== 渲染状态标志 =====
+        this._inRenderingProcess = false    // PPU是否正在画图? 防止重复渲染
+        this._justPowerUp = true            // 是否刚开机? 首次渲染需要特殊处理
+        this._mirrorType = 0                // 屏幕镜像模式: 0=垂直镜像 1=水平镜像
 
+        // ===== 重要常数配置 =====
+        // 这些是NTSC制式电视机的标准参数
+        this._PPUDOTS_PER_CPU = 3           // PPU速度: 每个CPU周期,PPU画3个点
+        this._SP_TRANSPARENT = 0xF0         // 精灵透明色(自定义的特殊值)
+        this._SCANLINE_PIXEL = 341          // 每行扫描线341个点
+        this._HBLANK_PIXEL = 85             // 每行消隐期85个点(不画画的时间)
+        this._NMI_CYCLE = 2273              // NMI中断到渲染的时间间隔
+        this._FRAME_CYCLE = 29780           // 一帧需要29780个CPU周期
+        this._OAMDMA_CYCLE = 513            // OAMDMA传输消耗513个周期
 
-        this._inRenderingProcess = false    // 当前周期下ppu是否在渲染状态
-        this._justPowerUp = true            // 是否刚刚启动
-        this._mirrorType = 0                // 0是垂直镜像  1是水平镜像
+        // ===== PPU控制寄存器 ($2000 PPUCTRL) =====
+        // 写入格式: VPHB SINN
+        this._NMI_ENABLE = 0                // V: NMI中断开关 (1=开启)
+        this._PPU_MASTER = 0                // P: PPU主机模式 (未实现)
+        this._SPRITE_HEIGHT = 0             // H: 精灵高度 (0=8x8, 1=8x16)
+        this._BG_TILE_SELECT = 0            // B: 背景Tile地址 (0=$0000, 1=$1000)
+        this._SPRITE_TILE_SELECT = 0        // S: 精灵Tile地址 (0=$0000, 1=$1000)
+        this._INCREMENT_MODE = 0            // I: VRAM地址递增方式 (0=+1, 1=+32)
+        this._NAMETABLE_SELECT = 0          // NN: 起始图案表 (0-3四选一)
 
-        // 常用常数
+        // ===== PPU显示控制 ($2001 PPUMASK) =====
+        // 写入格式: BGRs bMmG
+        this._COLOR_EMPHASIS = 0            // BGR: 色彩强调 (未实现)
+        this._SPRITE_ENABLE = 0             // s: 精灵显示开关 (1=显示)
+        this._BACKGROUND_ENABLE = 0         // b: 背景显示开关 (1=显示)
+        this._SPRITE_LEFT_C_ENABLE = 0      // M: 左侧精灵显示 (1=左侧第8像素显示)
+        this._BG_LEFT_C_ENABLE = 0          // m: 左侧背景显示 (1=左侧第8像素显示)
+        this._GREYSCALE = 0                 // G: 灰度模式 (未实现)
 
-        this._PPUDOTS_PER_CPU = 3           // 每个CPU周期PPU画点数
-        this._SP_TRANSPARENT = 0xF0         // 自定义的值，用该值代指精灵透明色
-        this._SCANLINE_PIXEL = 341          // 每行扫描像素数
-        this._HBLANK_PIXEL = 85             // 行消隐像素数
-        this._NMI_CYCLE = 2273              // NMI开始到渲染持续周期
-        this._FRAME_CYCLE = 29780           // 每帧CPU周期数
-        this._OAMDMA_CYCLE = 513            // 执行OAMDMA消耗周期
+        // ===== PPU状态读取 ($2002 PPUSTATUS) =====
+        // 读取格式: VSO- ----
+        // 注意: 读取此地址会重置PPUSCROLL和PPUADDR的写入状态
+        this._VBLANK = 1                    // V: 是否处于VBLANK状态
+        this._SPRITE_0_HIT = 0              // S: 精灵0碰撞标志
+        this._SPRITE_OVERFLOW = 1           // O: 精灵溢出标志 (未实现)
 
-        // 与CPU交互的地址所引出的状态
-        // $2000 PPUCTRL > write
-        // VPHB SINN
-        this._NMI_ENABLE = 0            // V
-        this._PPU_MASTER = 0            // P  未实现
-        this._SPRITE_HEIGHT = 0         // H
-        this._BG_TILE_SELECT = 0        // B
-        this._SPRITE_TILE_SELECT = 0    // S
-        this._INCREMENT_MODE = 0        // I
-        this._NAMETABLE_SELECT = 0      // NN
-
-        // $2001 PPUMASK > write
-        // BGRs bMmG
-        this._COLOR_EMPHASIS = 0        // BGR 未实现
-        this._SPRITE_ENABLE = 0         // s
-        this._BACKGROUND_ENABLE = 0     // b
-        this._SPRITE_LEFT_C_ENABLE = 0  // M
-        this._BG_LEFT_C_ENABLE = 0      // m
-        this._GREYSCALE = 0             // G 未实现
-
-        // 2002 PPUSTATUS < read
-        // 读取该地址会使 $2005 $2006复位
-        // VSO- ----
-        this._VBLANK = 1                // V
-        this._SPRITE_0_HIT = 0          // S
-        this._SPRITE_OVERFLOW = 1       // O  未实现
-
-        // $2003 OAMADDR > write
-        // aaaaaaaa
-        // 操作精灵内存的地址
+        // ===== 精灵属性内存控制 =====
+        // $2003 OAMADDR: 操作精灵内存的地址指针
         this._OAMADDR = 0
+
+        // $2004 OAMDATA: 精灵内存数据读写 (建议不要直接读取)
+        this._OAMDATA = 0
 
         // $2004 OAMDATA <> r/w 最好不要读
         // dddddddd

@@ -1,0 +1,7 @@
+.DS_Store
+build/
+.idea
+node_modules/
+npm-debug.log
+yarn-error.log
+nwjs.app

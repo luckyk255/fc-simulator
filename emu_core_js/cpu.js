@@ -1,51 +1,84 @@
-// CPU 2A03
+/**
+ * CPU (中央处理器)
+ *
+ * 作用: 这是模拟器的"大脑",负责执行游戏ROM中的所有指令
+ * 类比: 就像人的大脑,一条一条地理解和执行游戏代码
+ *
+ * 核心概念:
+ * - 6502架构: 红白机使用的经典CPU架构,提供了56条基本指令
+ * - 寄存器: CPU内部的临时存储空间,就像人的短期记忆
+ *   * PC (Program Counter): 程序计数器,存储下一条要执行的指令在哪
+ *   * A (Accumulator): 累加器,做数学运算用的
+ *   * X, Y: 通用寄存器,辅助运算
+ *   * S (Stack Pointer): 栈指针,记录临时数据存到哪了
+ *   * P (Status Register): 状态寄存器,记录运算结果的状态(比如是否为零,是否溢出)
+ *
+ * - 指令表 (opcodeTable): 所有56条指令的清单,告诉CPU每条指令该怎么处理
+ * - 中断 (Interrupts): 紧急事件(比如画图的时机到了),需要CPU暂停当前工作去处理
+ *   * RESET: 复位中断(开机/重启)
+ *   * NMI: 不可屏蔽中断(通常用于画面刷新)
+ *   * IRQ: 普通中断
+ *
+ * - 周期 (Cycles): CPU每执行一条指令需要的时间,不同的指令需要的时间不同
+ *   * targetCount: 29780 = 一帧画面需要多少个CPU周期
+ *   * cycleCount: 当前已经执行了多少个周期
+ */
 
 class CPU {
     constructor() {
 
-        // 掩码
-        this._highbit = 0x80        // 最高位掩码
-        this._nexthbit = 0x40;      // 次高位掩码
+        // ===== 基础配置 =====
+        // 掩码: 用于检查数据的某一位是0还是1
+        this._highbit = 0x80        // 最高位掩码 (二进制: 10000000)
+        this._nexthbit = 0x40;      // 次高位掩码 (二进制: 01000000)
 
-        // CPU的周期状态
-        this.cycleCount = 0         // 当前周期计数
-        this.targetCount = 29780    // nes每一帧画面的cpu时钟数
+        // ===== CPU周期管理 =====
+        // 红白机每秒显示60帧画面,每帧需要CPU执行约29780个周期的工作
+        this.cycleCount = 0         // 当前已执行的周期数(从零开始计数)
+        this.targetCount = 29780    // 一帧画面需要CPU完成的总周期数
 
-        // 优先级 RESET>NMI>IRQ
-        this._interrupts = false    // 总体状态，标明是否有中断发出
-        this.IRQ = false            // IRQ中断
-        this.NMI = false            // NMI不可屏蔽中断
-        this.RESET = false          // 复位中断
-
-
-        // 寄存器
-        this.PC = 0 // 程序计数器
-        this.A = 0  // 累加器
-        this.X = 0 
-        this.Y = 0 
-        this.S = 0xFD //开机默认$FD
-
-        // 状态寄存器
-        // 每一位一个状态
-        // CPU的 P 寄存器的每一位
-        // nv-bdizc
-        this._FLAG_C = 0
-        this._FLAG_Z = 0
-        this._FLAG_I = 0
-        this._FLAG_D = 0
-        this._FLAG_B = 0
-        this._FLAG_U = 0
-        this._FLAG_V = 0
-        this._FLAG_N = 0
+        // ===== 中断系统 =====
+        // 中断优先级: RESET(复位) > NMI(不可屏蔽) > IRQ(普通)
+        // 类比: 就像老师讲课被打断,有急事(火警)和普通问题(提问)的区别
+        this._interrupts = false    // 总体状态: 是否有中断需要处理
+        this.IRQ = false            // IRQ中断: 普通中断,可以暂时不管
+        this.NMI = false            // NMI中断: 不可屏蔽,必须立即处理(主要用于画面刷新)
+        this.RESET = false          // RESET中断: 复位/重启信号,优先级最高
 
 
-        // 使用的内存实例
-        this.mem = null
+        // ===== CPU寄存器 =====
+        // 这些是CPU内部的"工作台",临时存放数据的地方
+        this.PC = 0     // 程序计数器: 记住下一条指令在哪(就像书签)
+        this.A = 0      // 累加器: 做数学运算的主要工作台
+        this.X = 0      // X寄存器: 通用寄存器,辅助运算
+        this.Y = 0      // Y寄存器: 通用寄存器,辅助运算
+        this.S = 0xFD   // 栈指针: 记录临时数据存到哪了(开机默认是0xFD)
 
-        // CPU的指令表
+        // ===== 状态寄存器 (P寄存器) =====
+        // 这是一个8位的寄存器,每一位代表一个状态标志
+        // 布局: nv-bdizc (n=负号, v=溢出, b=中断标志, d=十进制模式, i=中断屏蔽, z=零, c=进位)
+        this._FLAG_C = 0    // C (Carry): 进位标志,数学运算是否进位
+        this._FLAG_Z = 0    // Z (Zero): 零标志,运算结果是否为零
+        this._FLAG_I = 0    // I (Interrupt): 中断屏蔽,是否允许普通中断
+        this._FLAG_D = 0    // D (Decimal): 十进制模式,是否使用十进制运算(红白机不用)
+        this._FLAG_B = 0    // B (Break): 中断标志,用于调试
+        this._FLAG_U = 0    // U (Unused): 未使用位
+        this._FLAG_V = 0    // V (oVerflow): 溢出标志,有符号数运算是否溢出
+        this._FLAG_N = 0    // N (Negative): 负号标志,运算结果是否为负数
+
+
+        // ===== 外部连接 =====
+        this.mem = null     // 内存管理器: CPU需要读取/写入数据的地方
+
+        // ===== 指令表 (Opcode Table) =====
+        // 这是CPU的"说明书",记录了所有56条指令的处理方法
+        // 每条指令有4个属性:
+        // 1. 指令处理函数 (proc)
+        // 2. 指令长度 (length): 这条指令占用多少字节
+        // 3. 执行周期 (cycles): 执行需要多少个CPU周期
+        // 4. 寻址方式 (addrProc): 如何找到操作的数据
         this.opcodeTable = [
-            // proc, length, cycles, addrProc
-            // 指令，长度，周期，寻址方式
+            // [处理函数, 长度, 周期, 寻址方式]
 
             // 暂不处理非法指令，跳转指令寻址不使用单独函数
             // 名称带*的伪非法指令

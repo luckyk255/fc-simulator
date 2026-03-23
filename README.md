@@ -1,5 +1,12 @@
 # NES/FC 红白机模拟器
 
+- **在线试玩**：<https://luckyk255.github.io/fc-simulator/main.html>
+- **仓库**：<https://github.com/luckyk255/fc-simulator>
+
+在线地址依赖 [GitHub Pages](https://docs.github.com/en/pages)：在仓库 **Settings → Pages** 把 **Source** 设为 **GitHub Actions**，推送 `main` 后会由 [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) 部署；**未部署前该链接为 404**（当前实测如此）。
+
+**可玩性**：已在本地用 `python3 -m http.server` 校验 `main.html`、`demoGame.min.js`、`emu_core_js/cpu.js` 等请求均为 HTTP 200，资源路径与 GitHub 项目站点的子路径 `/fc-simulator/` 兼容。
+
 **一句话概括**: 这是一个用纯 JavaScript 编写的"任天堂红白机"模拟器,它能在电脑浏览器里模拟运行当年的小霸王游戏卡带。
 
 ## 🎯 核心思想(五分钟看懂)

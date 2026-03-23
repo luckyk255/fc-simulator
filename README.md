@@ -2,13 +2,6 @@
 
 - **在线试玩**：<https://luckyk255.github.io/fc-simulator/main.html>
 
-1. **推荐（最简单）**：打开 [Pages 设置](https://github.com/luckyk255/fc-simulator/settings/pages) → **Build and deployment** → **Source** 选 **Deploy from a branch** → Branch 选 **`main`**，文件夹选 **`/(root)`** → Save。成功后访问：<https://luckyk255.github.io/fc-simulator/main.html>
-2. **或用 Actions**：同一页面把 **Source** 改为 **GitHub Actions**，再到 [Actions](https://github.com/luckyk255/fc-simulator/actions) 里手动运行 **Deploy GitHub Pages**，等该 workflow 成功（绿勾）。**注意**：Source 必须和实际使用的方式一致，否则不会出站。
-
-若仓库是 **Private** 且账户为免费版，GitHub 可能不提供公开 Pages，需将仓库改为 **Public** 或升级付费方案（以 [GitHub 文档](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits) 为准）。
-
-**可玩性**：已在本地用 `python3 -m http.server` 校验 `main.html`、`demoGame.min.js`、`emu_core_js/cpu.js` 等请求均为 HTTP 200，资源路径与项目站点子路径 `/fc-simulator/` 兼容。
-
 **一句话概括**: 这是一个用纯 JavaScript 编写的"任天堂红白机"模拟器,它能在电脑浏览器里模拟运行当年的小霸王游戏卡带。
 
 ## 🎯 核心思想(五分钟看懂)

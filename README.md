@@ -3,9 +3,14 @@
 - **在线试玩**：<https://luckyk255.github.io/fc-simulator/main.html>
 - **仓库**：<https://github.com/luckyk255/fc-simulator>
 
-在线地址依赖 [GitHub Pages](https://docs.github.com/en/pages)：在仓库 **Settings → Pages** 把 **Source** 设为 **GitHub Actions**，推送 `main` 后会由 [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) 部署；**未部署前该链接为 404**（当前实测如此）。
+在线地址走 [GitHub Pages](https://docs.github.com/en/pages)。若打开仍是 **404 / There isn't a GitHub Pages site here**，说明**还没在仓库里真正启用发布**，按下面**任选一种**做完并等 1～2 分钟再刷新：
 
-**可玩性**：已在本地用 `python3 -m http.server` 校验 `main.html`、`demoGame.min.js`、`emu_core_js/cpu.js` 等请求均为 HTTP 200，资源路径与 GitHub 项目站点的子路径 `/fc-simulator/` 兼容。
+1. **推荐（最简单）**：打开 [Pages 设置](https://github.com/luckyk255/fc-simulator/settings/pages) → **Build and deployment** → **Source** 选 **Deploy from a branch** → Branch 选 **`main`**，文件夹选 **`/(root)`** → Save。成功后访问：<https://luckyk255.github.io/fc-simulator/main.html>
+2. **或用 Actions**：同一页面把 **Source** 改为 **GitHub Actions**，再到 [Actions](https://github.com/luckyk255/fc-simulator/actions) 里手动运行 **Deploy GitHub Pages**，等该 workflow 成功（绿勾）。**注意**：Source 必须和实际使用的方式一致，否则不会出站。
+
+若仓库是 **Private** 且账户为免费版，GitHub 可能不提供公开 Pages，需将仓库改为 **Public** 或升级付费方案（以 [GitHub 文档](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits) 为准）。
+
+**可玩性**：已在本地用 `python3 -m http.server` 校验 `main.html`、`demoGame.min.js`、`emu_core_js/cpu.js` 等请求均为 HTTP 200，资源路径与项目站点子路径 `/fc-simulator/` 兼容。
 
 **一句话概括**: 这是一个用纯 JavaScript 编写的"任天堂红白机"模拟器,它能在电脑浏览器里模拟运行当年的小霸王游戏卡带。
 
